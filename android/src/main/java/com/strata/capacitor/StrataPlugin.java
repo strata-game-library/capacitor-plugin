@@ -243,7 +243,7 @@ public class StrataPlugin extends Plugin {
         profile.put("inputMode", inputMode);
         profile.put("orientation", getOrientation());
         profile.put("hasTouch", hasTouchScreen());
-        profile.put("hasPointer", false);
+        profile.put("hasPointer", hasPointerDevice());
         profile.put("hasGamepad", hasGameController());
         profile.put("isMobile", deviceType.equals("mobile"));
         profile.put("isTablet", deviceType.equals("tablet"));
@@ -650,6 +650,19 @@ public class StrataPlugin extends Plugin {
                 leftTrigger, rightTrigger
             );
         }
+    }
+
+    @PluginMethod
+    public void vibrate(PluginCall call) {
+        Integer duration = call.getInt("duration", 100); // Default 100ms
+        if (vibrator != null && vibrator.hasVibrator()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(duration, VibrationEffect.DEFAULT_AMPLITUDE));
+            } else {
+                vibrator.vibrate(duration);
+            }
+        }
+        call.resolve();
     }
 
     @Override

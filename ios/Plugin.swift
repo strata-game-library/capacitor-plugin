@@ -190,7 +190,7 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
             "inputMode": inputMode,
             "orientation": getOrientation(),
             "hasTouch": true,
-            "hasPointer": false,
+            "hasPointer": UIDevice.current.userInterfaceIdiom == .pad,
             "hasGamepad": hasGamepad,
             "isMobile": deviceType == "mobile",
             "isTablet": deviceType == "tablet",

@@ -9,4 +9,5 @@ CAP_PLUGIN(StrataPlugin, "Strata",
     CAP_PLUGIN_METHOD(selectController, CAPPluginReturnPromise);
     CAP_PLUGIN_METHOD(getConnectedControllers, CAPPluginReturnPromise);
     CAP_PLUGIN_METHOD(triggerHaptics, CAPPluginReturnPromise);
+    CAP_PLUGIN_METHOD(vibrate, CAPPluginReturnPromise);
 )
