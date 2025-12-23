@@ -13,6 +13,7 @@ export interface StrataPlatformAdapter {
   setInputMapping(mapping: Partial<InputMapping>): Promise<void>;
 
   triggerHaptics(options: HapticsOptions): Promise<void>;
+  vibrate(options?: { duration?: number }): Promise<void>;
 
   getControlHints(): Promise<ControlHints>;
 

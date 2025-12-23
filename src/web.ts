@@ -103,8 +103,6 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
     };
 
     private handleTouchEnd = (e: TouchEvent): void => {
-        // Extract touch IDs before setTimeout to avoid accessing stale TouchEvent
-        // (TouchEvent objects may be reused by the browser after the event handler returns)
         const touchIds: number[] = [];
         for (const touch of Array.from(e.changedTouches)) {
             touchIds.push(touch.identifier);
@@ -113,8 +111,6 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
                 existing.phase = 'ended';
             }
         }
-        // Delay touch cleanup by one frame (~16ms at 60fps) to allow the 'ended'
-        // phase to be read by consumers before removing the touch entry
         setTimeout(() => {
             for (const id of touchIds) {
                 this.touches.delete(id);
@@ -159,6 +155,14 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
                 });
             }
 
+            if (this.inputListeners.length === 0 && this.deviceListeners.length === 0) {
+                if (this.animationFrameId) {
+                    cancelAnimationFrame(this.animationFrameId);
+                    this.animationFrameId = null;
+                }
+                return;
+            }
+
             this.animationFrameId = requestAnimationFrame(loop);
         };
         loop();
@@ -168,7 +172,6 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
         if (!this.lastInputSnapshot) return true;
         const last = this.lastInputSnapshot;
 
-        // Check stick changes
         if (current.leftStick.x !== last.leftStick.x || current.leftStick.y !== last.leftStick.y)
             return true;
         if (
@@ -177,14 +180,12 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
         )
             return true;
 
-        // Check trigger changes
         if (
             current.triggers.left !== last.triggers.left ||
             current.triggers.right !== last.triggers.right
         )
             return true;
 
-        // Check button changes
         const currentButtons = Object.keys(current.buttons);
         const lastButtons = Object.keys(last.buttons);
         if (currentButtons.length !== lastButtons.length) return true;
@@ -192,7 +193,6 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
             if (current.buttons[key] !== last.buttons[key]) return true;
         }
 
-        // Check touch changes
         if (current.touches.length !== last.touches.length) return true;
         for (let i = 0; i < current.touches.length; i++) {
             const currTouch = current.touches[i];
@@ -349,14 +349,13 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
         if (gamepad) {
             const deadzone = 0.15;
 
-            // Invert Y-axis to match game-style coordinates (matches Android/iOS behavior)
-            // Pushing stick forward should give negative Y, matching "up" in game coordinates
             if (Math.abs(gamepad.axes[0]) > deadzone) leftStick.x = gamepad.axes[0];
-            if (Math.abs(gamepad.axes[1]) > deadzone) leftStick.y = -gamepad.axes[1];
+            if (Math.abs(gamepad.axes[1]) > deadzone) leftStick.y = gamepad.axes[1];
+            
             if (gamepad.axes.length > 2 && Math.abs(gamepad.axes[2]) > deadzone)
                 rightStick.x = gamepad.axes[2];
             if (gamepad.axes.length > 3 && Math.abs(gamepad.axes[3]) > deadzone)
-                rightStick.y = -gamepad.axes[3];
+                rightStick.y = gamepad.axes[3];
 
             buttons.jump = buttons.jump || (gamepad.buttons[0]?.pressed ?? false);
             buttons.action = buttons.action || (gamepad.buttons[1]?.pressed ?? false);
@@ -387,22 +386,16 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
     }
 
     async triggerHaptics(options: HapticsOptions): Promise<void> {
-        // Handle pattern array if provided
-        // Note: Pattern-based haptics only support navigator.vibrate, not gamepad rumble
         if (options.pattern && 'vibrate' in navigator) {
             navigator.vibrate(options.pattern);
             return;
         }
 
-        // Determine effective intensity (customIntensity takes precedence)
         let intensity: 'light' | 'medium' | 'heavy';
         let customMagnitude: number | undefined;
 
         if (options.customIntensity !== undefined) {
-            // Validate custom intensity range
             const clampedIntensity = Math.max(0, Math.min(1, options.customIntensity));
-
-            // Map to preset for navigator.vibrate (which doesn't support numeric intensity)
             if (clampedIntensity < 0.33) {
                 intensity = 'light';
             } else if (clampedIntensity < 0.66) {
@@ -410,21 +403,16 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
             } else {
                 intensity = 'heavy';
             }
-
-            // Keep custom magnitude for gamepad
             customMagnitude = clampedIntensity;
         } else {
-            // Default to 'medium' if intensity not specified
             intensity = options.intensity ?? 'medium';
         }
 
-        // Standard intensity-based haptics
         if ('vibrate' in navigator) {
             const durations = { light: 10, medium: 25, heavy: 50 };
             navigator.vibrate(options.duration ?? durations[intensity]);
         }
 
-        // Gamepad haptics
         const gamepad = (this.gamepads.find((gp) => gp !== null && 'vibrationActuator' in gp) as unknown) as {
             vibrationActuator?: {
                 playEffect: (
@@ -454,18 +442,16 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
         }
     }
 
-    /**
-     * Select which controller to use for input (iOS only).
-     * On web, this is a no-op since web handles multiple gamepads differently.
-     */
+    async vibrate(options?: { duration?: number }): Promise<void> {
+        await this.triggerHaptics({ duration: options?.duration });
+    }
+
     async selectController(options: { index: number }): Promise<{
         success: boolean;
         selectedIndex?: number;
         controllerId?: string;
         error?: string;
     }> {
-        // Web handles gamepads through the Gamepad API which works differently
-        // This method is primarily for iOS multi-controller support
         return {
             success: true,
             selectedIndex: options.index,
@@ -473,10 +459,6 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
         };
     }
 
-    /**
-     * Get list of all connected game controllers.
-     * On web, returns gamepads from the Gamepad API.
-     */
     async getConnectedControllers(): Promise<{
         controllers: Array<{
             index: number;
@@ -493,7 +475,7 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
                 return {
                     index,
                     id: gp.id,
-                    isSelected: index === 0, // Web uses first available by default
+                    isSelected: index === 0,
                     hasExtendedGamepad: true,
                     hasMicroGamepad: false,
                 };
@@ -508,7 +490,6 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
 
     async addListener(
         eventName: 'deviceChange' | 'inputChange' | 'gamepadConnected' | 'gamepadDisconnected',
-        // biome-ignore lint/suspicious/noExplicitAny: Capacitor uses any for listener callbacks
         callback: (data: any) => void
     ): Promise<{ remove: () => Promise<void> }> {
         const removeFromArray = <T>(arr: T[], item: T): void => {
