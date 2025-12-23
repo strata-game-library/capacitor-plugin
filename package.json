@@ -1,10 +1,9 @@
 {
   "name": "@jbcom/strata-capacitor-plugin",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Capacitor plugin for Strata 3D - cross-platform input, device detection, and haptics for mobile games",
   "type": "module",
   "main": "./dist/index.js",
-  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
@@ -16,45 +15,20 @@
       "import": "./dist/react/index.js"
     }
   },
-  "files": [
-    "dist",
-    "android",
-    "ios",
-    "README.md"
-  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "clean": "rimraf dist",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint src/",
-    "lint:fix": "biome lint --write src/",
-    "format": "biome format --write src/",
-    "docgen": "docgen --api StrataPlugin --output-readme README.md"
+    "lint:fix": "biome lint --write src/"
   },
-  "keywords": [
-    "capacitor",
-    "strata",
-    "input",
-    "gamepad",
-    "touch",
-    "haptics",
-    "device-detection",
-    "cross-platform",
-    "react-three-fiber",
-    "mobile",
-    "ios",
-    "android"
-  ],
+  "keywords": ["capacitor", "strata", "mobile", "input", "haptics"],
   "author": "Jon Bogaty <jon@jonbogaty.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/jbcom/nodejs-strata-capacitor-plugin"
-  },
-  "homepage": "https://github.com/jbcom/nodejs-strata-capacitor-plugin#readme",
-  "bugs": {
-    "url": "https://github.com/jbcom/nodejs-strata-capacitor-plugin/issues"
   },
   "peerDependencies": {
     "@jbcom/strata": ">=1.4.0",
@@ -66,17 +40,8 @@
   "devDependencies": {
     "@biomejs/biome": "^2.3.0",
     "@capacitor/cli": "^8.0.0",
-    "@capacitor/docgen": "^0.3.1",
     "@types/react": "^19.0.0",
     "rimraf": "^6.1.0",
     "typescript": "^5.9.0"
-  },
-  "capacitor": {
-    "ios": {
-      "src": "ios"
-    },
-    "android": {
-      "src": "android"
-    }
   }
 }
