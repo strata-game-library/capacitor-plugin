@@ -139,6 +139,13 @@ export interface StrataPlugin {
      */
     triggerHaptics(options: HapticsOptions): Promise<void>;
     /**
+     * Simple vibration method for basic haptic feedback.
+     * 
+     * @param options Optional duration configuration
+     * @returns Promise that resolves when vibration is triggered
+     */
+    vibrate(options?: { duration?: number }): Promise<void>;
+    /**
      * Select which controller to use for input (iOS only, 0-based index).
      * Use getConnectedControllers() to see available controllers.
      *

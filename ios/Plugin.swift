@@ -15,7 +15,8 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "setInputMapping", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "selectController", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getConnectedControllers", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "triggerHaptics", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "triggerHaptics", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "vibrate", returnType: CAPPluginReturnPromise)
     ]
 
     private var inputMapping: [String: [String]] = [
@@ -190,7 +191,7 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
             "inputMode": inputMode,
             "orientation": getOrientation(),
             "hasTouch": true,
-            "hasPointer": false,
+            "hasPointer": UIDevice.current.userInterfaceIdiom == .pad,
             "hasGamepad": hasGamepad,
             "isMobile": deviceType == "mobile",
             "isTablet": deviceType == "tablet",
@@ -445,8 +446,20 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
         call.resolve()
     }
 
+    @objc func vibrate(_ call: CAPPluginCall) {
+        let duration = call.getInt("duration") ?? 100
+        
+        // iOS doesn't support custom vibration duration via UIImpactFeedbackGenerator,
+        // so we use the medium impact as a default "vibration"
+        DispatchQueue.main.async { [weak self] in
+            self?.mediumImpactGenerator?.impactOccurred()
+        }
+        
+        call.resolve()
+    }
+
     public func handleTouchBegan(_ touch: UITouch, at location: CGPoint) {
-        let id = touch.hash
+        let id = ObjectIdentifier(touch).hashValue
         touchQueue.sync {
             activeTouches[id] = [
                 "position": ["x": location.x, "y": location.y],
@@ -456,7 +469,7 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     public func handleTouchMoved(_ touch: UITouch, at location: CGPoint) {
-        let id = touch.hash
+        let id = ObjectIdentifier(touch).hashValue
         touchQueue.sync {
             if activeTouches[id] != nil {
                 activeTouches[id] = [
@@ -468,14 +481,14 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     public func handleTouchEnded(_ touch: UITouch) {
-        let id = touch.hash
+        let id = ObjectIdentifier(touch).hashValue
         touchQueue.sync {
             _ = activeTouches.removeValue(forKey: id)
         }
     }
 
     public func handleTouchCancelled(_ touch: UITouch) {
-        let id = touch.hash
+        let id = ObjectIdentifier(touch).hashValue
         touchQueue.sync {
             _ = activeTouches.removeValue(forKey: id)
         }

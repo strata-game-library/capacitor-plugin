@@ -118,6 +118,12 @@ function Game() {
 
 ✅ Full support | ⚠️ Partial support | ❌ Not supported
 
+### Platform Notes
+
+- **Keyboard/Gamepad on Mobile (iOS/Android)**: ⚠️ Partial support refers to the fact that these inputs are supported via physical external peripherals connected via Bluetooth or USB. Support for soft-keyboards is not the primary focus.
+- **Device Haptics on Web**: ⚠️ Supported on Android Chrome and some other mobile browsers. Not supported on iOS Safari.
+- **Gamepad Haptics on iOS/Android**: ⚠️ Native rumble for connected controllers is planned for a future update.
+
 ## License
 
 MIT
