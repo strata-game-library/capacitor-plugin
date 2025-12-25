@@ -2,32 +2,37 @@
 
 ## Requirements
 
-- Python 3.9+
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
+- Node.js 18+
+- [Capacitor](https://capacitorjs.com/) 6+
+- Strata 3D 1.4+
 
-## Install from PyPI
+## Install from NPM
 
 ```bash
-# Using uv (recommended)
-uv add PACKAGE_NAME
-
-# Using pip
-pip install PACKAGE_NAME
+npm install @jbcom/strata-capacitor-plugin
+npx cap sync
 ```
 
-## Install from Source
+## Platform-Specific Setup
 
-```bash
-git clone https://github.com/jbcom/PACKAGE_NAME.git
-cd PACKAGE_NAME
-uv sync
-```
+### iOS
 
-## Development Installation
+1. Run `npx cap open ios`
+2. Ensure the `StrataPlugin.swift` and `StrataPlugin.m` are included in your project.
 
-```bash
-# Clone and install with dev dependencies
-git clone https://github.com/jbcom/PACKAGE_NAME.git
-cd PACKAGE_NAME
-uv sync --extra dev --extra docs
+### Android
+
+1. Run `npx cap open android`
+2. Register the plugin in your `MainActivity.java` if using Capacitor 2/3, otherwise it's auto-registered in Capacitor 4+.
+
+```java
+import com.jbcom.plugins.strata.StrataPlugin;
+
+public class MainActivity extends BridgeActivity {
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        // ...
+    }
+}
 ```

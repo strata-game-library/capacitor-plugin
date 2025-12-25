@@ -32,7 +32,8 @@
     "docgen": "docgen --api StrataPlugin --output-readme README.md",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "cd example && npm install && npm test"
   },
   "keywords": [
     "capacitor",
@@ -68,6 +69,7 @@
     "@semantic-release/npm": "^13.1.3",
     "@types/react": "^19.0.0",
     "@vitest/coverage-v8": "^4.0.16",
+    "jsdom": "^27.3.0",
     "rimraf": "^6.1.0",
     "semantic-release": "^25.0.2",
     "typescript": "^5.9.0",

@@ -106,12 +106,47 @@ export interface HapticsOptions {
      * @example [100, 50, 100] // vibrate 100ms, pause 50ms, vibrate 100ms
      */
     pattern?: number[];
+    /**
+     * Legacy type for backward compatibility with initial implementation.
+     */
+    type?: 'impact' | 'notification' | 'selection';
+    /**
+     * Legacy style for backward compatibility.
+     */
+    style?: 'light' | 'medium' | 'heavy';
 }
 
 export interface ControlHints {
     movement: string;
     action: string;
     camera: string;
+}
+
+export interface DeviceInfo {
+  isMobile: boolean;
+  platform: 'web' | 'ios' | 'android';
+  model?: string;
+  osVersion?: string;
+}
+
+export interface OrientationOptions {
+  orientation: 'any' | 'portrait' | 'landscape' | 'portrait-primary' | 'portrait-secondary' | 'landscape-primary' | 'landscape-secondary';
+}
+
+export interface SafeAreaInsets {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+export interface PerformanceMode {
+  enabled: boolean;
+}
+
+export interface TouchOptions {
+  preventScrolling: boolean;
+  preventZooming: boolean;
 }
 
 export interface StrataPlugin {
@@ -124,18 +159,6 @@ export interface StrataPlugin {
      *
      * @param options Haptics configuration
      * @returns Promise that resolves when haptic is triggered
-     *
-     * @example
-     * // Simple preset
-     * await triggerHaptics({ intensity: 'medium' });
-     *
-     * @example
-     * // Custom intensity with duration
-     * await triggerHaptics({ customIntensity: 0.7, duration: 30 });
-     *
-     * @example
-     * // Pattern (Android/Web only)
-     * await triggerHaptics({ pattern: [100, 50, 100, 50, 100] });
      */
     triggerHaptics(options: HapticsOptions): Promise<void>;
     /**
@@ -145,6 +168,30 @@ export interface StrataPlugin {
      * @returns Promise that resolves when vibration is triggered
      */
     vibrate(options?: { duration?: number }): Promise<void>;
+    /**
+     * Legacy haptics method for backward compatibility.
+     */
+    haptics(options: HapticsOptions): Promise<void>;
+    /**
+     * Get device information relevant to Strata 3D.
+     */
+    getDeviceInfo(): Promise<DeviceInfo>;
+    /**
+     * Lock or unlock screen orientation.
+     */
+    setScreenOrientation(options: OrientationOptions): Promise<void>;
+    /**
+     * Get safe area insets for the device.
+     */
+    getSafeAreaInsets(): Promise<SafeAreaInsets>;
+    /**
+     * Check if performance mode is enabled or suggest it.
+     */
+    getPerformanceMode(): Promise<PerformanceMode>;
+    /**
+     * Configure touch handling for games (e.g. prevent scrolling/zooming).
+     */
+    configureTouchHandling(options: TouchOptions): Promise<void>;
     /**
      * Select which controller to use for input (iOS only, 0-based index).
      * Use getConnectedControllers() to see available controllers.

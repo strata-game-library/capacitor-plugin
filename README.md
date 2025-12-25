@@ -7,6 +7,10 @@ Cross-platform input, device detection, and haptics for Strata 3D games. Works w
 - **Device Detection** - Automatically detect platform (iOS, Android, Windows, macOS, Linux, Web), device type (mobile, tablet, foldable, desktop), and input mode (touch, keyboard, gamepad)
 - **Unified Input** - Abstract touch joysticks, keyboard WASD, and gamepad sticks into a single API
 - **Haptic Feedback** - Unified haptics via device vibration and gamepad rumble
+- **Screen Orientation** - Lock or unlock screen orientation from code
+- **Safe Area Insets** - Get accurate safe area insets for notched screens
+- **Performance Mode** - Detect battery-saving modes
+- **Touch Handling** - Unified way to disable scrolling/zooming for games
 - **React Hooks** - Ready-to-use hooks for React/React Three Fiber integration
 
 ## Installation
@@ -38,12 +42,15 @@ console.log(input.leftStick); // { x: 0, y: -1 } for forward movement
 
 // Trigger haptic feedback
 await Strata.triggerHaptics({ intensity: 'medium' });
+
+// Configure touch handling (Web only)
+await Strata.configureTouchHandling({ preventScrolling: true, preventZooming: true });
 ```
 
 ### React Hooks
 
 ```tsx
-import { DeviceProvider, useDevice, useInput, useHaptics, useControlHints } from '@strata/capacitor-plugin/react';
+import { DeviceProvider, useDevice, useInput, useHaptics, useControlHints, useStrata } from '@strata/capacitor-plugin/react';
 
 function App() {
   return (
@@ -58,6 +65,7 @@ function Game() {
   const { leftStick, isPressed } = useInput();
   const { medium } = useHaptics();
   const hints = useControlHints();
+  const { deviceInfo, safeArea } = useStrata();
 
   // Show appropriate controls based on device
   if (device.inputMode === 'touch') {
@@ -74,10 +82,10 @@ function Game() {
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `deviceType` | `'mobile' \| 'tablet' \| 'foldable' \| 'desktop'` | Detected device category |
-| `platform` | `'ios' \| 'android' \| 'windows' \| 'macos' \| 'linux' \| 'web'` | Operating system |
-| `inputMode` | `'touch' \| 'keyboard' \| 'gamepad' \| 'hybrid'` | Primary input method |
-| `orientation` | `'portrait' \| 'landscape'` | Screen orientation |
+| `deviceType` | `'mobile' | 'tablet' | 'foldable' | 'desktop'` | Detected device category |
+| `platform` | `'ios' | 'android' | 'windows' | 'macos' | 'linux' | 'web'` | Operating system |
+| `inputMode` | `'touch' | 'keyboard' | 'gamepad' | 'hybrid'` | Primary input method |
+| `orientation` | `'portrait' | 'landscape'` | Screen orientation |
 | `hasTouch` | `boolean` | Touch capability |
 | `hasPointer` | `boolean` | Precise pointer (mouse) |
 | `hasGamepad` | `boolean` | Connected gamepad |
@@ -94,13 +102,13 @@ function Game() {
 | `rightStick` | `{ x: number, y: number }` | Camera/look input (-1 to 1) |
 | `buttons` | `Record<string, boolean>` | Button states |
 | `triggers` | `{ left: number, right: number }` | Trigger values (0 to 1) |
-| `touches` | `Array<{ id: number, position: { x: number, y: number }, phase: 'began' \| 'moved' \| 'ended' \| 'cancelled' }>` | Active touch points |
+| `touches` | `Array<{ id: number, position: { x: number, y: number }, phase: 'began' | 'moved' | 'ended' | 'cancelled' }>` | Active touch points |
 
 ### HapticsOptions
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `intensity` | `'light' \| 'medium' \| 'heavy'` | Vibration strength preset |
+| `intensity` | `'light' | 'medium' | 'heavy'` | Vibration strength preset |
 | `customIntensity` | `number?` | Custom intensity from 0.0 to 1.0 (overrides `intensity`) |
 | `duration` | `number?` | Duration in milliseconds |
 | `pattern` | `number[]?` | Vibration pattern array (alternating on/off durations in ms) |
@@ -127,3 +135,4 @@ function Game() {
 ## License
 
 MIT
+

@@ -1,17 +1,18 @@
-# Active Context - 2025-12-24
+# Active Context - 2025-12-25
 
 ## Current Focus
-- Fixed Issue #2: Added integration tests with @jbcom/strata.
-- Verified plugin compatibility with main strata package in a test project.
+- Completing the initial implementation of the Capacitor plugin for Strata 3D.
+- Rebasing onto main and resolving conflicts with recent integration tests and structural changes.
+- Fixing identified issues in native and web implementations (crash risks, logic errors).
 
 ## Recent Changes
-- Updated `example/src/integration.test.ts` with comprehensive tests for:
-    - iOS simulator device detection (including safe area insets).
-    - Android emulator device detection (including tablet and gamepad support).
-    - Haptics API preset intensities and custom durations.
-    - Complex gamepad input snapshots and controller selection.
-- Fixed `example/vitest.config.ts` to correctly resolve `@capacitor/core` and React.
+- Implemented core plugin logic across Web, iOS, and Android.
+- Added features: Device info, Haptics, Orientation, Safe Area, Performance, Touch Handling.
+- Added React hook `useStrata` and unified React integration.
+- Added unit tests for web implementation.
+- Updated documentation and README.
 
 ## Next Steps
-- Implement native iOS/Android code if not already complete.
-- Add more examples for specific game genres (FPS, Top-down).
+- Ensure all tests pass.
+- Verify native implementations on real devices if possible.
+- Merge the PR.

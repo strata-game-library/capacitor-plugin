@@ -16,7 +16,13 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "selectController", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getConnectedControllers", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "triggerHaptics", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "vibrate", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "vibrate", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getDeviceInfo", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "haptics", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setScreenOrientation", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getSafeAreaInsets", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getPerformanceMode", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "configureTouchHandling", returnType: CAPPluginReturnPromise)
     ]
 
     private var inputMapping: [String: [String]] = [
@@ -29,22 +35,15 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
         "cancel": ["Escape"]
     ]
 
-    /// Maps action names to GCController button property names
-    /// Users can customize which button triggers which action via setInputMapping
     private var gamepadButtonMapping: [String: String] = [
         "jump": "buttonA",
         "action": "buttonB",
         "cancel": "buttonX"
     ]
 
-    /// Index of the currently selected controller (0-based)
-    /// Use selectController() to change which controller is used for input
     private var selectedControllerIndex: Int = 0
 
     private var activeTouches: [Int: [String: Any]] = [:]
-    // Serial queue for thread-safe access to activeTouches dictionary.
-    // Touch handlers run on main thread, but getInputSnapshot may run on
-    // background threads (Capacitor plugin methods don't guarantee main thread).
     private let touchQueue = DispatchQueue(label: "com.strata.capacitor.touches")
     private var lightImpactGenerator: UIImpactFeedbackGenerator?
     private var mediumImpactGenerator: UIImpactFeedbackGenerator?
@@ -95,7 +94,6 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func controllerDidDisconnect(_ notification: Notification) {
         guard let controller = notification.object as? GCController else { return }
-        // Use playerIndex since controller is already removed from controllers() array by the time this fires
         let index = controller.playerIndex.rawValue >= 0 ? controller.playerIndex.rawValue : 0
         notifyListeners("gamepadDisconnected", data: ["index": index])
         notifyDeviceChange()
@@ -149,10 +147,9 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    private func getSafeAreaInsets() -> [String: CGFloat] {
+    private func _getSafeAreaInsets() -> [String: CGFloat] {
         var insets: [String: CGFloat] = ["top": 0, "right": 0, "bottom": 0, "left": 0]
 
-        // Check if already on main thread to prevent deadlock
         let getSafeArea = {
             if let window = UIApplication.shared.connectedScenes
                 .compactMap({ $0 as? UIWindowScene })
@@ -200,13 +197,23 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
             "screenWidth": screen.width,
             "screenHeight": screen.height,
             "pixelRatio": UIScreen.main.scale,
-            "safeAreaInsets": getSafeAreaInsets()
+            "safeAreaInsets": _getSafeAreaInsets()
         ]
     }
 
     @objc func getDeviceProfile(_ call: CAPPluginCall) {
         let profile = buildDeviceProfile()
         call.resolve(profile)
+    }
+
+    @objc func getDeviceInfo(_ call: CAPPluginCall) {
+        let device = UIDevice.current
+        call.resolve([
+            "isMobile": device.userInterfaceIdiom == .phone || device.userInterfaceIdiom == .pad,
+            "platform": "ios",
+            "model": device.model,
+            "osVersion": device.systemVersion
+        ])
     }
 
     @objc func getControlHints(_ call: CAPPluginCall) {
@@ -253,7 +260,6 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
         ]
         var triggers: [String: Float] = ["left": 0, "right": 0]
 
-        // Get the controller at the selected index, or nil if out of bounds
         let controllers = GCController.controllers()
         let controller = selectedControllerIndex < controllers.count ? controllers[selectedControllerIndex] : nil
 
@@ -271,7 +277,6 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
             if abs(rx) > deadzone { rightStick["x"] = rx }
             if abs(ry) > deadzone { rightStick["y"] = -ry }
 
-            // Use configurable button mapping
             buttons["jump"] = getButtonPressed(gamepad: gamepad, buttonName: gamepadButtonMapping["jump"] ?? "buttonA")
             buttons["action"] = getButtonPressed(gamepad: gamepad, buttonName: gamepadButtonMapping["action"] ?? "buttonB")
             buttons["cancel"] = getButtonPressed(gamepad: gamepad, buttonName: gamepadButtonMapping["cancel"] ?? "buttonX")
@@ -280,7 +285,6 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
             triggers["right"] = gamepad.rightTrigger.value
         }
 
-        // Thread-safe read of activeTouches via serial queue
         let touchesArray: [[String: Any]] = touchQueue.sync {
             activeTouches.map { (id, data) in
                 return [
@@ -311,8 +315,6 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
             }
         }
 
-        // Also support gamepad button mapping
-        // e.g., { "gamepadButtons": { "jump": "buttonY", "action": "buttonA" } }
         if let gamepadButtons = call.getObject("gamepadButtons") as? [String: String] {
             for (action, buttonName) in gamepadButtons {
                 gamepadButtonMapping[action] = buttonName
@@ -322,8 +324,6 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
         call.resolve()
     }
 
-    /// Select which controller to use for input (0-based index)
-    /// Use getConnectedControllers() to see available controllers
     @objc func selectController(_ call: CAPPluginCall) {
         let index = call.getInt("index") ?? 0
         let controllers = GCController.controllers()
@@ -348,7 +348,6 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    /// Get list of all connected controllers
     @objc func getConnectedControllers(_ call: CAPPluginCall) {
         let controllers = GCController.controllers()
         var result: [[String: Any]] = []
@@ -369,7 +368,6 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
         ])
     }
 
-    /// Helper to get button pressed state by button name
     private func getButtonPressed(gamepad: GCExtendedGamepad, buttonName: String) -> Bool {
         switch buttonName {
         case "buttonA":
@@ -410,13 +408,10 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func triggerHaptics(_ call: CAPPluginCall) {
-        // Check if customIntensity is provided (takes precedence)
         let customIntensity = call.getDouble("customIntensity")
         let intensity: String
 
         if let customValue = customIntensity {
-            // Map numeric intensity (0-1) to discrete iOS levels
-            // Note: iOS only supports 3 levels (light/medium/heavy)
             let clampedValue = max(0.0, min(1.0, customValue))
             if clampedValue < 0.33 {
                 intensity = "light"
@@ -428,9 +423,6 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
         } else {
             intensity = call.getString("intensity") ?? "medium"
         }
-
-        // Note: iOS ignores duration and pattern parameters
-        // UIImpactFeedbackGenerator uses system default duration (~10ms)
 
         DispatchQueue.main.async { [weak self] in
             switch intensity {
@@ -447,19 +439,87 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func vibrate(_ call: CAPPluginCall) {
-        let duration = call.getInt("duration") ?? 100
-        
-        // iOS doesn't support custom vibration duration via UIImpactFeedbackGenerator,
-        // so we use the medium impact as a default "vibration"
         DispatchQueue.main.async { [weak self] in
             self?.mediumImpactGenerator?.impactOccurred()
         }
-        
+        call.resolve()
+    }
+
+    @objc func haptics(_ call: CAPPluginCall) {
+      let type = call.getString("type") ?? "impact"
+      let style = call.getString("style") ?? "medium"
+      
+      if type == "notification" {
+        DispatchQueue.main.async {
+          let generator = UINotificationFeedbackGenerator()
+          generator.notificationOccurred(.success)
+        }
+        call.resolve()
+      } else if type == "selection" {
+        DispatchQueue.main.async {
+          let generator = UISelectionFeedbackGenerator()
+          generator.selectionChanged()
+        }
+        call.resolve()
+      } else {
+        let intensity = style
+        DispatchQueue.main.async { [weak self] in
+            switch intensity {
+            case "light":
+                self?.lightImpactGenerator?.impactOccurred()
+            case "heavy":
+                self?.heavyImpactGenerator?.impactOccurred()
+            default:
+                self?.mediumImpactGenerator?.impactOccurred()
+            }
+        }
+        call.resolve()
+      }
+    }
+
+    @objc func setScreenOrientation(_ call: CAPPluginCall) {
+        let orientation = call.getString("orientation") ?? "any"
+
+        DispatchQueue.main.async {
+            if #available(iOS 16.0, *) {
+                let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene
+                var mask: UIInterfaceOrientationMask = .all
+                if orientation.contains("portrait") { mask = .portrait }
+                else if orientation.contains("landscape") { mask = .landscape }
+                
+                windowScene?.requestGeometryUpdate(.iOS(interfaceOrientations: mask))
+            } else {
+                var value = UIInterfaceOrientation.unknown.rawValue
+                if orientation.contains("portrait") { value = UIInterfaceOrientation.portrait.rawValue }
+                else if orientation.contains("landscape") { value = UIInterfaceOrientation.landscapeLeft.rawValue }
+                UIDevice.current.setValue(value, forKey: "orientation")
+            }
+        }
+        call.resolve()
+    }
+
+    @objc func getSafeAreaInsets(_ call: CAPPluginCall) {
+        let insets = _getSafeAreaInsets()
+        call.resolve([
+            "top": insets["top"] ?? 0,
+            "right": insets["right"] ?? 0,
+            "bottom": insets["bottom"] ?? 0,
+            "left": insets["left"] ?? 0
+        ])
+    }
+
+    @objc func getPerformanceMode(_ call: CAPPluginCall) {
+        call.resolve([
+            "enabled": !ProcessInfo.processInfo.isLowPowerModeEnabled
+        ])
+    }
+
+    @objc func configureTouchHandling(_ call: CAPPluginCall) {
         call.resolve()
     }
 
     public func handleTouchBegan(_ touch: UITouch, at location: CGPoint) {
-        let id = ObjectIdentifier(touch).hashValue
+        let id = touch.hash
         touchQueue.sync {
             activeTouches[id] = [
                 "position": ["x": location.x, "y": location.y],
@@ -469,7 +529,7 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     public func handleTouchMoved(_ touch: UITouch, at location: CGPoint) {
-        let id = ObjectIdentifier(touch).hashValue
+        let id = touch.hash
         touchQueue.sync {
             if activeTouches[id] != nil {
                 activeTouches[id] = [
@@ -481,14 +541,14 @@ public class StrataPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     public func handleTouchEnded(_ touch: UITouch) {
-        let id = ObjectIdentifier(touch).hashValue
+        let id = touch.hash
         touchQueue.sync {
             _ = activeTouches.removeValue(forKey: id)
         }
     }
 
     public func handleTouchCancelled(_ touch: UITouch) {
-        let id = ObjectIdentifier(touch).hashValue
+        let id = touch.hash
         touchQueue.sync {
             _ = activeTouches.removeValue(forKey: id)
         }

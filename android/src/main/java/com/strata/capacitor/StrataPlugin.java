@@ -196,60 +196,102 @@ public class StrataPlugin extends Plugin {
         return "portrait";
     }
 
-    private JSObject getSafeAreaInsets() {
+    private JSObject getSafeAreaInsetsInternal() {
         JSObject insets = new JSObject();
         insets.put("top", 0);
         insets.put("right", 0);
         insets.put("bottom", 0);
         insets.put("left", 0);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             try {
                 com.getcapacitor.Bridge bridge = getBridge();
                 if (bridge == null || bridge.getActivity() == null) {
-                    Log.w(TAG, "Activity is null, cannot get safe area insets (API 30+)");
                     return insets;
                 }
                 View rootView = bridge.getActivity().getWindow().getDecorView();
                 WindowInsets windowInsets = rootView.getRootWindowInsets();
                 if (windowInsets != null) {
-                    android.graphics.Insets systemInsets = windowInsets.getInsets(
-                        WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()
-                    );
                     float density = getContext().getResources().getDisplayMetrics().density;
-                    insets.put("top", systemInsets.top / density);
-                    insets.put("right", systemInsets.right / density);
-                    insets.put("bottom", systemInsets.bottom / density);
-                    insets.put("left", systemInsets.left / density);
-                }
-            } catch (Exception e) {
-                Log.w(TAG, "Error getting safe area insets (API 30+)", e);
-            }
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            try {
-                android.app.Activity activity = getActivity();
-                if (activity == null) {
-                    Log.w(TAG, "Activity is null, cannot get safe area insets (API 28+)");
-                    return insets;
-                }
-                View rootView = activity.getWindow().getDecorView();
-                WindowInsets windowInsets = rootView.getRootWindowInsets();
-                if (windowInsets != null) {
-                    android.view.DisplayCutout cutout = windowInsets.getDisplayCutout();
-                    if (cutout != null) {
-                        float density = getContext().getResources().getDisplayMetrics().density;
-                        insets.put("top", cutout.getSafeInsetTop() / density);
-                        insets.put("right", cutout.getSafeInsetRight() / density);
-                        insets.put("bottom", cutout.getSafeInsetBottom() / density);
-                        insets.put("left", cutout.getSafeInsetLeft() / density);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        android.graphics.Insets systemInsets = windowInsets.getInsets(
+                            WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()
+                        );
+                        insets.put("top", systemInsets.top / density);
+                        insets.put("right", systemInsets.right / density);
+                        insets.put("bottom", systemInsets.bottom / density);
+                        insets.put("left", systemInsets.left / density);
+                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        android.view.DisplayCutout cutout = windowInsets.getDisplayCutout();
+                        if (cutout != null) {
+                            insets.put("top", cutout.getSafeInsetTop() / density);
+                            insets.put("right", cutout.getSafeInsetRight() / density);
+                            insets.put("bottom", cutout.getSafeInsetBottom() / density);
+                            insets.put("left", cutout.getSafeInsetLeft() / density);
+                        }
                     }
                 }
             } catch (Exception e) {
-                Log.w(TAG, "Error getting safe area insets (API 28+)", e);
+                Log.w(TAG, "Error getting safe area insets", e);
             }
         }
 
         return insets;
+    }
+
+    @PluginMethod
+    public void getSafeAreaInsets(PluginCall call) {
+        call.resolve(getSafeAreaInsetsInternal());
+    }
+
+    @PluginMethod
+    public void getDeviceInfo(PluginCall call) {
+        JSObject info = new JSObject();
+        String deviceType = detectDeviceType();
+        info.put("isMobile", deviceType.equals("mobile") || deviceType.equals("tablet") || deviceType.equals("foldable"));
+        info.put("platform", "android");
+        info.put("model", Build.MODEL);
+        info.put("osVersion", Build.VERSION.RELEASE);
+        call.resolve(info);
+    }
+
+    @PluginMethod
+    public void haptics(PluginCall call) {
+        triggerHaptics(call);
+    }
+
+    @PluginMethod
+    public void setScreenOrientation(PluginCall call) {
+        String orientation = call.getString("orientation");
+        if (orientation != null) {
+            getActivity().runOnUiThread(() -> {
+                if (orientation.contains("portrait")) {
+                    getActivity().setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+                } else if (orientation.contains("landscape")) {
+                    getActivity().setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+                } else if (orientation.equals("any")) {
+                    getActivity().setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+                }
+            });
+        }
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void getPerformanceMode(PluginCall call) {
+        JSObject result = new JSObject();
+        boolean isPowerSaveMode = false;
+        android.os.PowerManager powerManager = (android.os.PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+        if (powerManager != null) {
+            isPowerSaveMode = powerManager.isPowerSaveMode();
+        }
+        result.put("enabled", !isPowerSaveMode);
+        call.resolve(result);
+    }
+
+    @PluginMethod
+    public void configureTouchHandling(PluginCall call) {
+        call.resolve();
     }
 
     private JSObject buildDeviceProfile() {
@@ -273,7 +315,7 @@ public class StrataPlugin extends Plugin {
         profile.put("screenWidth", metrics.widthPixels / metrics.density);
         profile.put("screenHeight", metrics.heightPixels / metrics.density);
         profile.put("pixelRatio", metrics.density);
-        profile.put("safeAreaInsets", getSafeAreaInsets());
+        profile.put("safeAreaInsets", getSafeAreaInsetsInternal());
 
         return profile;
     }
@@ -336,27 +378,22 @@ public class StrataPlugin extends Plugin {
         triggers.put("left", 0.0f);
         triggers.put("right", 0.0f);
 
-        // Read gamepad input from the immutable state snapshot if available
-        // This is thread-safe: we read the volatile reference once, and the
-        // GamepadState object is immutable, so no race conditions are possible.
         GamepadState gamepadState = lastGamepadState;
         if (gamepadState != null) {
-            // Apply deadzone and populate stick values
             if (Math.abs(gamepadState.leftStickX) > GAMEPAD_DEADZONE) {
                 leftStick.put("x", gamepadState.leftStickX);
             }
             if (Math.abs(gamepadState.leftStickY) > GAMEPAD_DEADZONE) {
-                leftStick.put("y", -gamepadState.leftStickY); // Invert Y for game-style coordinates
+                leftStick.put("y", -gamepadState.leftStickY);
             }
 
             if (Math.abs(gamepadState.rightStickX) > GAMEPAD_DEADZONE) {
                 rightStick.put("x", gamepadState.rightStickX);
             }
             if (Math.abs(gamepadState.rightStickY) > GAMEPAD_DEADZONE) {
-                rightStick.put("y", -gamepadState.rightStickY); // Invert Y for game-style coordinates
+                rightStick.put("y", -gamepadState.rightStickY);
             }
 
-            // Trigger values (already 0 to 1 range)
             triggers.put("left", gamepadState.leftTrigger);
             triggers.put("right", gamepadState.rightTrigger);
         }
@@ -469,9 +506,6 @@ public class StrataPlugin extends Plugin {
         call.resolve(result);
     }
 
-    /**
-     * Get list of connected game controllers (gamepads/joysticks)
-     */
     private List<InputDevice> getGameControllers() {
         List<InputDevice> controllers = new ArrayList<>();
         int[] deviceIds = InputDevice.getDeviceIds();
@@ -495,7 +529,6 @@ public class StrataPlugin extends Plugin {
             return;
         }
 
-        // Check for pattern array first (takes precedence)
         JSArray patternArray = call.getArray("pattern");
         if (patternArray != null && patternArray.length() > 0) {
             try {
@@ -505,7 +538,6 @@ public class StrataPlugin extends Plugin {
                 }
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    // Pattern vibration with default amplitude
                     vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1));
                 } else {
                     vibrator.vibrate(pattern, -1);
@@ -513,54 +545,36 @@ public class StrataPlugin extends Plugin {
                 call.resolve();
                 return;
             } catch (JSONException e) {
-                Log.w(TAG, "Error parsing haptic pattern array, falling back to intensity-based haptics", e);
-                // Fall through to standard intensity-based haptics
+                Log.w(TAG, "Error parsing haptic pattern array", e);
             }
         }
 
-        // Determine amplitude from customIntensity or preset intensity
         int amplitude;
         Double customIntensity = call.getDouble("customIntensity");
 
         if (customIntensity != null) {
-            // Map custom intensity (0-1) to amplitude (1-255)
             double clampedIntensity = Math.max(0.0, Math.min(1.0, customIntensity));
             amplitude = (int) Math.max(1, Math.min(255, clampedIntensity * 255));
         } else {
-            // Use preset intensity
             String intensity = call.getString("intensity", "medium");
             switch (intensity) {
-                case "light":
-                    amplitude = 50;
-                    break;
-                case "heavy":
-                    amplitude = 255;
-                    break;
-                default:
-                    amplitude = 150;
-                    break;
+                case "light": amplitude = 50; break;
+                case "heavy": amplitude = 255; break;
+                default: amplitude = 150; break;
             }
         }
 
-        // Determine duration
         Integer duration = call.getInt("duration");
         long vibrationDuration;
 
         if (duration != null) {
-            // Validate duration to prevent DoS attacks - limit to 10 seconds maximum
             vibrationDuration = Math.max(0, Math.min(10000, duration));
         } else {
-            // Default durations based on intensity
-            if (amplitude <= 50) {
-                vibrationDuration = 10;
-            } else if (amplitude >= 200) {
-                vibrationDuration = 50;
-            } else {
-                vibrationDuration = 25;
-            }
+            if (amplitude <= 50) vibrationDuration = 10;
+            else if (amplitude >= 200) vibrationDuration = 50;
+            else vibrationDuration = 25;
         }
 
-        // Vibrate with amplitude control (Android O+) or simple vibration (older)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             vibrator.vibrate(VibrationEffect.createOneShot(vibrationDuration, amplitude));
         } else {
@@ -631,51 +645,29 @@ public class StrataPlugin extends Plugin {
         notifyListeners("gamepadDisconnected", data);
     }
 
-    /**
-     * Handle gamepad motion events to capture stick and trigger values.
-     * This should be called from the Activity's onGenericMotionEvent.
-     *
-     * Thread-safety: This method extracts axis values immediately and stores
-     * them in an immutable GamepadState object. This avoids race conditions
-     * with MotionEvent recycling - the caller can recycle the event after
-     * this method returns without affecting getInputSnapshot on other threads.
-     */
     public void handleGamepadMotionEvent(MotionEvent event) {
         if (event == null) return;
 
         int source = event.getSource();
         if ((source & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD ||
             (source & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK) {
-            // Extract all axis values immediately from the event.
-            // This is safe because we're on the UI thread that owns the event,
-            // and we don't hold any reference to it after this method returns.
             float leftStickX = event.getAxisValue(MotionEvent.AXIS_X);
             float leftStickY = event.getAxisValue(MotionEvent.AXIS_Y);
             float rightStickX = event.getAxisValue(MotionEvent.AXIS_Z);
             float rightStickY = event.getAxisValue(MotionEvent.AXIS_RZ);
 
-            // Read trigger values - some controllers use BRAKE/GAS instead
             float leftTrigger = event.getAxisValue(MotionEvent.AXIS_LTRIGGER);
             float rightTrigger = event.getAxisValue(MotionEvent.AXIS_RTRIGGER);
-            if (leftTrigger == 0) {
-                leftTrigger = event.getAxisValue(MotionEvent.AXIS_BRAKE);
-            }
-            if (rightTrigger == 0) {
-                rightTrigger = event.getAxisValue(MotionEvent.AXIS_GAS);
-            }
+            if (leftTrigger == 0) leftTrigger = event.getAxisValue(MotionEvent.AXIS_BRAKE);
+            if (rightTrigger == 0) rightTrigger = event.getAxisValue(MotionEvent.AXIS_GAS);
 
-            // Store in an immutable snapshot - this is thread-safe for readers
-            lastGamepadState = new GamepadState(
-                leftStickX, leftStickY,
-                rightStickX, rightStickY,
-                leftTrigger, rightTrigger
-            );
+            lastGamepadState = new GamepadState(leftStickX, leftStickY, rightStickX, rightStickY, leftTrigger, rightTrigger);
         }
     }
 
     @PluginMethod
     public void vibrate(PluginCall call) {
-        Integer duration = call.getInt("duration", 100); // Default 100ms
+        Integer duration = call.getInt("duration", 100);
         if (vibrator != null && vibrator.hasVibrator()) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 vibrator.vibrate(VibrationEffect.createOneShot(duration, VibrationEffect.DEFAULT_AMPLITUDE));
@@ -689,7 +681,6 @@ public class StrataPlugin extends Plugin {
     @Override
     protected void handleOnDestroy() {
         super.handleOnDestroy();
-        // Clear the gamepad state reference to allow garbage collection
         lastGamepadState = null;
     }
 }

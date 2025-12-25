@@ -10,6 +10,11 @@ import type {
     DeviceType,
     Platform,
     InputMode,
+    DeviceInfo,
+    OrientationOptions,
+    SafeAreaInsets,
+    PerformanceMode,
+    TouchOptions,
 } from './definitions';
 import { DEFAULT_INPUT_MAPPING as DEFAULT_MAPPING } from './definitions';
 import type { StrataPlatformAdapter } from './contract';
@@ -53,8 +58,10 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
         window.addEventListener('touchend', this.handleTouchEnd, { passive: true });
         window.addEventListener('touchcancel', this.handleTouchCancel, { passive: true });
         window.addEventListener('resize', this.handleResize);
-        this.orientationMediaQuery = window.matchMedia('(orientation: portrait)');
-        this.orientationMediaQuery.addEventListener('change', this.handleOrientationChange);
+        this.orientationMediaQuery = window.matchMedia?.('(orientation: portrait)');
+        if (this.orientationMediaQuery) {
+            this.orientationMediaQuery.addEventListener('change', this.handleOrientationChange);
+        }
 
         this.startInputLoop();
     }
@@ -281,11 +288,20 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
             screenWidth: window.innerWidth,
             screenHeight: window.innerHeight,
             pixelRatio: window.devicePixelRatio,
-            safeAreaInsets: this.getSafeAreaInsets(),
+            safeAreaInsets: await this.getSafeAreaInsets(),
         };
     }
 
-    private getSafeAreaInsets(): DeviceProfile['safeAreaInsets'] {
+    async getDeviceInfo(): Promise<DeviceInfo> {
+      const profile = await this.getDeviceProfile();
+      return {
+        isMobile: profile.isMobile,
+        platform: 'web', // Always web for StrataWeb
+      };
+    }
+
+    async getSafeAreaInsets(): Promise<SafeAreaInsets> {
+        if (typeof window === 'undefined') return { top: 0, right: 0, bottom: 0, left: 0 };
         const style = getComputedStyle(document.documentElement);
         return {
             top: parseInt(style.getPropertyValue('--sat') || '0', 10) || 0,
@@ -350,12 +366,12 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
             const deadzone = 0.15;
 
             if (Math.abs(gamepad.axes[0]) > deadzone) leftStick.x = gamepad.axes[0];
-            if (Math.abs(gamepad.axes[1]) > deadzone) leftStick.y = gamepad.axes[1];
+            if (Math.abs(gamepad.axes[1]) > deadzone) leftStick.y = -gamepad.axes[1];
             
             if (gamepad.axes.length > 2 && Math.abs(gamepad.axes[2]) > deadzone)
                 rightStick.x = gamepad.axes[2];
             if (gamepad.axes.length > 3 && Math.abs(gamepad.axes[3]) > deadzone)
-                rightStick.y = gamepad.axes[3];
+                rightStick.y = -gamepad.axes[3];
 
             buttons.jump = buttons.jump || (gamepad.buttons[0]?.pressed ?? false);
             buttons.action = buttons.action || (gamepad.buttons[1]?.pressed ?? false);
@@ -385,6 +401,21 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
         this.inputMapping = { ...this.inputMapping, ...mapping };
     }
 
+    async haptics(options: HapticsOptions): Promise<void> {
+      // Legacy haptics mapping
+      if (options.type) {
+        if (options.type === 'impact') {
+          options.intensity = options.style || 'medium';
+        } else if (options.type === 'notification') {
+          options.pattern = [100, 30, 100];
+        } else if (options.type === 'selection') {
+          options.intensity = 'light';
+          options.duration = 10;
+        }
+      }
+      return this.triggerHaptics(options);
+    }
+
     async triggerHaptics(options: HapticsOptions): Promise<void> {
         if (options.pattern && 'vibrate' in navigator) {
             navigator.vibrate(options.pattern);
@@ -396,6 +427,7 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
 
         if (options.customIntensity !== undefined) {
             const clampedIntensity = Math.max(0, Math.min(1, options.customIntensity));
+
             if (clampedIntensity < 0.33) {
                 intensity = 'light';
             } else if (clampedIntensity < 0.66) {
@@ -403,6 +435,7 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
             } else {
                 intensity = 'heavy';
             }
+
             customMagnitude = clampedIntensity;
         } else {
             intensity = options.intensity ?? 'medium';
@@ -413,19 +446,7 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
             navigator.vibrate(options.duration ?? durations[intensity]);
         }
 
-        const gamepad = (this.gamepads.find((gp) => gp !== null && 'vibrationActuator' in gp) as unknown) as {
-            vibrationActuator?: {
-                playEffect: (
-                    type: string,
-                    options: {
-                        startDelay: number;
-                        duration: number;
-                        weakMagnitude: number;
-                        strongMagnitude: number;
-                    }
-                ) => Promise<unknown>;
-            };
-        };
+        const gamepad = this.gamepads.find((gp) => gp !== null && 'vibrationActuator' in gp) as any;
         if (gamepad?.vibrationActuator) {
             const magnitudes = { light: 0.25, medium: 0.5, heavy: 1.0 };
             const magnitude = customMagnitude ?? magnitudes[intensity];
@@ -488,9 +509,68 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
         };
     }
 
+    async setScreenOrientation(options: OrientationOptions): Promise<void> {
+      const orientation = screen.orientation as any;
+      if (orientation?.lock) {
+        try {
+          await orientation.lock(options.orientation);
+        } catch (e) {
+          console.warn('Orientation lock failed:', e);
+        }
+      }
+    }
+
+    async getPerformanceMode(): Promise<PerformanceMode> {
+      return {
+        enabled: false,
+      };
+    }
+
+    async configureTouchHandling(options: TouchOptions): Promise<void> {
+      if (options.preventScrolling) {
+        document.body.style.overflow = 'hidden';
+        document.body.style.touchAction = 'none';
+      } else {
+        document.body.style.overflow = '';
+        document.body.style.touchAction = '';
+      }
+
+      const viewport = document.querySelector('meta[name=viewport]');
+      if (viewport) {
+        let content = viewport.getAttribute('content') || '';
+        if (options.preventZooming) {
+          if (!content.includes('user-scalable=no')) {
+            const cleanContent = content.trim().endsWith(',') ? content.trim() : (content.trim() ? `${content.trim()},` : '');
+            viewport.setAttribute('content', `${cleanContent} user-scalable=no`);
+          }
+        } else {
+          if (content.includes('user-scalable=no')) {
+            content = content.replace(/,\s*user-scalable=no/g, '').replace(/user-scalable=no,\s*/g, '').replace(/user-scalable=no/g, '');
+            viewport.setAttribute('content', content.trim());
+          }
+        }
+      }
+    }
+
+    addListener(
+        eventName: 'deviceChange',
+        callback: (profile: DeviceProfile) => void
+    ): Promise<{ remove: () => Promise<void> }>;
+    addListener(
+        eventName: 'inputChange',
+        callback: (snapshot: InputSnapshot) => void
+    ): Promise<{ remove: () => Promise<void> }>;
+    addListener(
+        eventName: 'gamepadConnected',
+        callback: (info: { index: number; id: string }) => void
+    ): Promise<{ remove: () => Promise<void> }>;
+    addListener(
+        eventName: 'gamepadDisconnected',
+        callback: (info: { index: number }) => void
+    ): Promise<{ remove: () => Promise<void> }>;
     async addListener(
         eventName: 'deviceChange' | 'inputChange' | 'gamepadConnected' | 'gamepadDisconnected',
-        callback: (data: DeviceProfile | InputSnapshot | { index: number; id: string } | { index: number }) => void
+        callback: (data: any) => void
     ): Promise<{ remove: () => Promise<void> }> {
         const removeFromArray = <T>(arr: T[], item: T): void => {
             const idx = arr.indexOf(item);
