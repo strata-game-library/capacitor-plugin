@@ -205,7 +205,12 @@ public class StrataPlugin extends Plugin {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             try {
-                View rootView = getActivity().getWindow().getDecorView();
+                com.getcapacitor.Bridge bridge = getBridge();
+                if (bridge == null || bridge.getActivity() == null) {
+                    Log.w(TAG, "Activity is null, cannot get safe area insets (API 30+)");
+                    return insets;
+                }
+                View rootView = bridge.getActivity().getWindow().getDecorView();
                 WindowInsets windowInsets = rootView.getRootWindowInsets();
                 if (windowInsets != null) {
                     android.graphics.Insets systemInsets = windowInsets.getInsets(
@@ -222,7 +227,12 @@ public class StrataPlugin extends Plugin {
             }
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             try {
-                View rootView = getActivity().getWindow().getDecorView();
+                android.app.Activity activity = getActivity();
+                if (activity == null) {
+                    Log.w(TAG, "Activity is null, cannot get safe area insets (API 28+)");
+                    return insets;
+                }
+                View rootView = activity.getWindow().getDecorView();
                 WindowInsets windowInsets = rootView.getRootWindowInsets();
                 if (windowInsets != null) {
                     android.view.DisplayCutout cutout = windowInsets.getDisplayCutout();
