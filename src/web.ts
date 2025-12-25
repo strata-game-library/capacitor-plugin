@@ -490,7 +490,7 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
 
     async addListener(
         eventName: 'deviceChange' | 'inputChange' | 'gamepadConnected' | 'gamepadDisconnected',
-        callback: (data: any) => void
+        callback: (data: DeviceProfile | InputSnapshot | { index: number; id: string } | { index: number }) => void
     ): Promise<{ remove: () => Promise<void> }> {
         const removeFromArray = <T>(arr: T[], item: T): void => {
             const idx = arr.indexOf(item);
