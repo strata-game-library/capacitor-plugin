@@ -92,11 +92,11 @@ runs:
       shell: bash
       run: |
         if [ "${{ inputs.package-manager }}" = "pnpm" ]; then
-          pnpm run ${{ inputs.test-command }} || true
+          pnpm run ${{ inputs.test-command }}
         elif [ "${{ inputs.package-manager }}" = "yarn" ]; then
-          yarn ${{ inputs.test-command }} || true
+          yarn ${{ inputs.test-command }}
         else
-          npm run ${{ inputs.test-command }} || true
+          npm run ${{ inputs.test-command }}
         fi
 
     - name: Build

@@ -89,63 +89,97 @@ Push to `main` branch and the workflow will automatically:
 1. Build your game
 2. Deploy to `https://[org].github.io/[repo]/`
 
-## Using Local Storage with Strata
+## Using Strata Storage API
 
-Strata Capacitor Plugin provides cross-platform storage that works identically on web and mobile.
+Strata Capacitor Plugin provides a cross-platform storage API that works identically on web (localStorage) and mobile (native storage).
 
 ### Basic Usage
 
 ```typescript
-// Save game state
-function saveGame(state: GameState) {
-  localStorage.setItem('game-save', JSON.stringify(state));
+import { Strata } from '@strata/capacitor-plugin';
+
+// Save game state (namespace isolates your game's data)
+async function saveGame(state: GameState) {
+  await Strata.setItem('save', state, { namespace: 'mygame' });
 }
 
 // Load game state
-function loadGame(): GameState | null {
-  const saved = localStorage.getItem('game-save');
-  return saved ? JSON.parse(saved) : null;
+async function loadGame(): Promise<GameState | null> {
+  const { value, exists } = await Strata.getItem<GameState>('save', { 
+    namespace: 'mygame' 
+  });
+  return exists ? value : null;
+}
+
+// List all saves
+async function listSaves(): Promise<string[]> {
+  const { keys } = await Strata.keys({ namespace: 'mygame' });
+  return keys;
+}
+
+// Delete a save
+async function deleteSave(key: string) {
+  await Strata.removeItem(key, { namespace: 'mygame' });
 }
 ```
 
 ### With React Hook
 
+The `useStorage` hook provides a convenient React interface:
+
 ```typescript
-import { useState, useEffect } from 'react';
+import { useStorage } from '@strata/capacitor-plugin/react';
 
-export function useSavedGame<T>(key: string, initialValue: T) {
-  const [state, setState] = useState<T>(() => {
-    const saved = localStorage.getItem(key);
-    return saved ? JSON.parse(saved) : initialValue;
-  });
+function SaveLoadMenu() {
+  const { saveGame, loadGame, listSaves, deleteGame, loading } = useStorage('mygame');
 
-  useEffect(() => {
-    localStorage.setItem(key, JSON.stringify(state));
-  }, [key, state]);
+  const handleSave = async () => {
+    await saveGame('quicksave', getCurrentGameState());
+  };
 
-  return [state, setState] as const;
+  const handleLoad = async () => {
+    const { value } = await loadGame<GameState>('quicksave');
+    if (value) restoreGameState(value);
+  };
+
+  if (loading) return <LoadingSpinner />;
+
+  return (
+    <div>
+      <button onClick={handleSave}>Quick Save</button>
+      <button onClick={handleLoad}>Quick Load</button>
+    </div>
+  );
 }
 ```
 
 ### Auto-Save Pattern
 
 ```typescript
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { useStorage } from '@strata/capacitor-plugin/react';
 import { useGameStore } from './stores/gameStore';
 
 export function useAutoSave() {
   const gameState = useGameStore();
+  const { saveGame } = useStorage('mygame');
+  const gameStateRef = useRef(gameState);
+
+  // Keep ref updated to avoid stale closures
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      localStorage.setItem('auto-save', JSON.stringify({
+    const interval = setInterval(async () => {
+      await saveGame('auto-save', {
         timestamp: Date.now(),
-        state: gameState,
-      }));
+        state: gameStateRef.current,
+      });
     }, 30000); // Auto-save every 30 seconds
 
     return () => clearInterval(interval);
-  }, [gameState]);
+  }, [saveGame]);
 }
 ```
 
