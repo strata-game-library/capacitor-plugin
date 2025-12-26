@@ -1,0 +1,105 @@
+# Strata Games - GitHub Pages Deployment Template
+# 
+# This is a template workflow for deploying Strata-powered games to GitHub Pages.
+# Copy this file to your game repository's .github/workflows/ directory and customize as needed.
+#
+# Features:
+# - Builds web bundle using Vite or pnpm monorepo
+# - Deploys to GitHub Pages
+# - Supports Strata Capacitor Plugin for local storage
+# - Mobile-friendly PWA support
+#
+# Prerequisites:
+# - Enable GitHub Pages in repository settings (Settings > Pages > Source: GitHub Actions)
+# - Game must have a `build` script that outputs to `dist/` directory
+#
+# Usage:
+# 1. Copy this file to .github/workflows/deploy-pages.yml
+# 2. Customize the BUILD_COMMAND and DIST_PATH variables
+# 3. Push to main branch to trigger deployment
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Allow one concurrent deployment
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+# Sets permissions of the GITHUB_TOKEN
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+env:
+  # Customize these for your game
+  NODE_VERSION: '22'
+  PACKAGE_MANAGER: 'pnpm'  # pnpm, npm, or yarn
+  BUILD_COMMAND: 'build'   # The npm script to run (e.g., 'build', 'build:web')
+  DIST_PATH: 'dist'        # Output directory from build
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        if: env.PACKAGE_MANAGER == 'pnpm'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: ${{ env.PACKAGE_MANAGER }}
+
+      - name: Install dependencies
+        run: |
+          if [ "${{ env.PACKAGE_MANAGER }}" = "pnpm" ]; then
+            pnpm install --frozen-lockfile
+          elif [ "${{ env.PACKAGE_MANAGER }}" = "yarn" ]; then
+            yarn install --frozen-lockfile
+          else
+            npm ci
+          fi
+
+      - name: Build
+        run: |
+          if [ "${{ env.PACKAGE_MANAGER }}" = "pnpm" ]; then
+            pnpm run ${{ env.BUILD_COMMAND }}
+          elif [ "${{ env.PACKAGE_MANAGER }}" = "yarn" ]; then
+            yarn ${{ env.BUILD_COMMAND }}
+          else
+            npm run ${{ env.BUILD_COMMAND }}
+          fi
+        env:
+          # Ensure correct base path for GitHub Pages
+          VITE_BASE_URL: /${{ github.event.repository.name }}/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ env.DIST_PATH }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
