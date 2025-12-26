@@ -149,6 +149,33 @@ export interface TouchOptions {
   preventZooming: boolean;
 }
 
+/**
+ * Storage options for game save data.
+ */
+export interface StorageOptions {
+  /**
+   * Namespace prefix for all keys (e.g., 'mygame' -> 'strata:mygame:key').
+   * Helps isolate game data from other localStorage usage.
+   * @default 'strata'
+   */
+  namespace?: string;
+}
+
+/**
+ * Result of a storage get operation.
+ */
+export interface StorageResult<T = unknown> {
+  value: T | null;
+  exists: boolean;
+}
+
+/**
+ * Keys listing result.
+ */
+export interface StorageKeysResult {
+  keys: string[];
+}
+
 export interface StrataPlugin {
     getDeviceProfile(): Promise<DeviceProfile>;
     getControlHints(): Promise<ControlHints>;
@@ -192,6 +219,52 @@ export interface StrataPlugin {
      * Configure touch handling for games (e.g. prevent scrolling/zooming).
      */
     configureTouchHandling(options: TouchOptions): Promise<void>;
+    
+    // ============ Storage API ============
+    
+    /**
+     * Save game data to persistent storage.
+     * On web: Uses localStorage with optional namespace prefix.
+     * On native: Uses native platform storage.
+     * 
+     * @param key The key to store data under
+     * @param value The value to store (will be JSON serialized)
+     * @param options Optional storage configuration
+     */
+    setItem<T = unknown>(key: string, value: T, options?: StorageOptions): Promise<void>;
+    
+    /**
+     * Retrieve game data from persistent storage.
+     * 
+     * @param key The key to retrieve
+     * @param options Optional storage configuration
+     * @returns The stored value or null if not found
+     */
+    getItem<T = unknown>(key: string, options?: StorageOptions): Promise<StorageResult<T>>;
+    
+    /**
+     * Remove a specific key from storage.
+     * 
+     * @param key The key to remove
+     * @param options Optional storage configuration
+     */
+    removeItem(key: string, options?: StorageOptions): Promise<void>;
+    
+    /**
+     * List all keys in storage (within the namespace if specified).
+     * 
+     * @param options Optional storage configuration
+     * @returns Array of keys
+     */
+    keys(options?: StorageOptions): Promise<StorageKeysResult>;
+    
+    /**
+     * Clear all storage (within the namespace if specified).
+     * 
+     * @param options Optional storage configuration
+     */
+    clear(options?: StorageOptions): Promise<void>;
+    
     /**
      * Select which controller to use for input (iOS only, 0-based index).
      * Use getConnectedControllers() to see available controllers.

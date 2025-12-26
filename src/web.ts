@@ -15,6 +15,9 @@ import type {
     SafeAreaInsets,
     PerformanceMode,
     TouchOptions,
+    StorageOptions,
+    StorageResult,
+    StorageKeysResult,
 } from './definitions';
 import { DEFAULT_INPUT_MAPPING as DEFAULT_MAPPING } from './definitions';
 import type { StrataPlatformAdapter } from './contract';
@@ -550,6 +553,77 @@ export class StrataWeb extends WebPlugin implements StrataPlugin, StrataPlatform
           }
         }
       }
+    }
+
+    // ============ Storage API Implementation ============
+    
+    private getStorageKey(key: string, options?: StorageOptions): string {
+        const namespace = options?.namespace || 'strata';
+        return `${namespace}:${key}`;
+    }
+
+    async setItem<T = unknown>(key: string, value: T, options?: StorageOptions): Promise<void> {
+        if (typeof localStorage === 'undefined') return;
+        const storageKey = this.getStorageKey(key, options);
+        try {
+            localStorage.setItem(storageKey, JSON.stringify(value));
+        } catch (e) {
+            console.warn('Strata: Failed to save to localStorage', e);
+        }
+    }
+
+    async getItem<T = unknown>(key: string, options?: StorageOptions): Promise<StorageResult<T>> {
+        if (typeof localStorage === 'undefined') {
+            return { value: null, exists: false };
+        }
+        const storageKey = this.getStorageKey(key, options);
+        const raw = localStorage.getItem(storageKey);
+        if (raw === null) {
+            return { value: null, exists: false };
+        }
+        try {
+            return { value: JSON.parse(raw) as T, exists: true };
+        } catch {
+            return { value: null, exists: true };
+        }
+    }
+
+    async removeItem(key: string, options?: StorageOptions): Promise<void> {
+        if (typeof localStorage === 'undefined') return;
+        const storageKey = this.getStorageKey(key, options);
+        localStorage.removeItem(storageKey);
+    }
+
+    async keys(options?: StorageOptions): Promise<StorageKeysResult> {
+        if (typeof localStorage === 'undefined') {
+            return { keys: [] };
+        }
+        const namespace = options?.namespace || 'strata';
+        const prefix = `${namespace}:`;
+        const result: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key?.startsWith(prefix)) {
+                result.push(key.slice(prefix.length));
+            }
+        }
+        return { keys: result };
+    }
+
+    async clear(options?: StorageOptions): Promise<void> {
+        if (typeof localStorage === 'undefined') return;
+        const namespace = options?.namespace || 'strata';
+        const prefix = `${namespace}:`;
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key?.startsWith(prefix)) {
+                keysToRemove.push(key);
+            }
+        }
+        for (const key of keysToRemove) {
+            localStorage.removeItem(key);
+        }
     }
 
     addListener(
