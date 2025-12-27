@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/strata-game-library/capacitor-plugin/compare/v1.0.0...v1.0.1) (2025-12-27)
+
+
+### Bug Fixes
+
+* add publishConfig for public npm access ([#19](https://github.com/strata-game-library/capacitor-plugin/issues/19)) ([75d1512](https://github.com/strata-game-library/capacitor-plugin/commit/75d15123a43c41c813d7f099083ad3e0e5721bf2))
+
 # 1.0.0 (2025-12-27)
 
 
